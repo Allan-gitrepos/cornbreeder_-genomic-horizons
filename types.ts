@@ -7,11 +7,17 @@ export interface Trait {
   optimumValue?: number;
 }
 
+// Diploid genome representation
+export interface Allele {
+  maternal: 0 | 1; // 0 = recessive, 1 = dominant
+  paternal: 0 | 1;
+}
+
 export interface Genome {
-  // A simplified genome: an array of chromosome pairs.
-  // For simplicity in this game, we use a single linear array of loci per chromosome pair.
-  // Values: 0 (aa), 1 (Aa), 2 (AA) - representing additive effect alleles.
-  loci: number[];
+  // Diploid: Each locus has two alleles (maternal and paternal)
+  // For backwards compatibility, we also compute the additive value (0, 1, or 2)
+  loci: number[]; // Additive representation: 0 (aa), 1 (Aa), 2 (AA)
+  diploid: Allele[]; // Full diploid representation
 }
 
 export interface Plant {
@@ -19,13 +25,17 @@ export interface Plant {
   generation: number;
   genome: Genome;
   phenotype: {
-    [traitId: string]: number; // The observed value (G + E)
-    height?: number; // Visual trait correlated with yield
+    yield: number;
+    resistance: number;
+    height: number;
   };
   breedingValue: {
-    [traitId: string]: number; // The true genetic potential (G)
+    yield: number;
+    resistance: number;
+    height: number;
   };
   isSelected: boolean;
+  isHeterozygous: boolean; // True if many loci are Aa
 }
 
 export interface PopulationStats {
@@ -34,7 +44,9 @@ export interface PopulationStats {
   meanYield: number;
   varYield: number;
   meanResistance: number;
+  meanHeight: number;
   maxYield: number;
+  heterozygosity: number; // Average heterozygosity
 }
 
 export interface GameState {
@@ -54,18 +66,19 @@ declare global {
     interface IntrinsicElements {
       ambientLight: any;
       directionalLight: any;
+      pointLight: any;
       mesh: any;
       group: any;
       planeGeometry: any;
       meshStandardMaterial: any;
+      meshBasicMaterial: any;
       gridHelper: any;
       ringGeometry: any;
-      meshBasicMaterial: any;
       sphereGeometry: any;
       cylinderGeometry: any;
       coneGeometry: any;
       capsuleGeometry: any;
-      primitive: any; // Added for GLTF handling
+      primitive: any;
     }
   }
 }

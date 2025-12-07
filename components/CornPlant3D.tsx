@@ -9,7 +9,6 @@ import { useGLTF } from '@react-three/drei';
 const cornModelUrl = `${import.meta.env.BASE_URL}components/corn_corn_corn.glb`;
 
 interface CornPlant3DProps {
-
   plant: Plant;
   position: [number, number, number];
   isSelected: boolean;
@@ -20,46 +19,40 @@ interface CornPlant3DProps {
 const CornPlant3D: React.FC<CornPlant3DProps> = ({ plant, position, isSelected, onClick, showGenetics }) => {
   const groupRef = useRef<Group>(null);
 
-  // Load the user-provided model
+  // Load the 3D model
   const { scene } = useGLTF(cornModelUrl);
 
   // --- TRAIT MAPPING ---
   const yieldVal = plant.phenotype.yield;
-  const heightVal = plant.phenotype.height || 15;
+  const heightVal = plant.phenotype.height;
   const resVal = plant.phenotype.resistance;
 
-  // Scaling logic based on Genetics
-  // Base scale of model might need adjustment depending on the GLB unit size
-  const baseScale = 0.5;
-  const yieldScale = Math.max(0.8, heightVal / 12);
-  const finalScaleY = baseScale * yieldScale;
-  const finalScaleXZ = baseScale * (0.8 + (yieldVal / 40)); // Slightly fatter if higher yield
+  // Scaling based on genetics
+  const baseScale = 0.45;
+  // Height affects Y scale
+  const heightScale = Math.max(0.6, (heightVal / 20));
+  const finalScaleY = baseScale * heightScale;
+  // Yield affects thickness
+  const thicknessScale = baseScale * (0.7 + (yieldVal / 30));
 
-  // Health Calculation (0.0 to 1.0)
-  // High Resistance (20) -> 1.0 (Healthy)
-  // Low Resistance (0) -> 0.0 (Sick)
+  // Health (0.0 to 1.0) based on resistance
   const healthFactor = Math.min(1, Math.max(0, resVal / 15));
 
-  // --- CLONING & MATERIAL LOGIC ---
+  // Clone scene with proper material tinting
   const clonedScene = useMemo(() => {
-    // Deep clone the scene so we have a unique instance for this plant
     const c = scene.clone(true);
 
-    // Define tints
-    const healthyTint = new Color(0xffffff); // White = Original Texture colors
-    const sickTint = new Color(0xa16207);    // Brown/Yellow overlay
+    // Color based on health
+    const healthyTint = new Color(0xffffff); // White = Original
+    const sickTint = new Color(0xa16207);    // Brown/Yellow (diseased)
 
-    // Calculate this plant's specific tint
     const plantTint = sickTint.clone().lerp(healthyTint, healthFactor);
 
-    // Traverse the model to apply the tint to all materials
     c.traverse((obj) => {
       if ((obj as Mesh).isMesh) {
         const mesh = obj as Mesh;
 
-        // We must clone the material so we don't affect other plants sharing the same base model
         if (mesh.material) {
-          // Handle single material or array of materials
           const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
 
           mesh.material = materials.map((m) => {
@@ -74,17 +67,14 @@ const CornPlant3D: React.FC<CornPlant3DProps> = ({ plant, position, isSelected, 
     return c;
   }, [scene, healthFactor]);
 
-
-  // Animation (Gentle Sway)
+  // Animation - gentle sway
   useFrame((state) => {
     if (groupRef.current) {
       const time = state.clock.getElapsedTime();
-      const swayAmount = 0.05 * (healthFactor);
-      // Desynchronize sway based on position
-      const swayX = Math.sin(time + position[0] * 0.5) * swayAmount;
-      const swayZ = Math.cos(time + position[2] * 0.5) * swayAmount;
+      const swayAmount = 0.03 * healthFactor;
+      const swayX = Math.sin(time * 0.8 + position[0] * 0.5) * swayAmount;
+      const swayZ = Math.cos(time * 0.6 + position[2] * 0.5) * swayAmount;
 
-      // Apply rotation to the group
       groupRef.current.rotation.x = swayX;
       groupRef.current.rotation.z = swayZ;
     }
@@ -96,40 +86,34 @@ const CornPlant3D: React.FC<CornPlant3DProps> = ({ plant, position, isSelected, 
       position={new Vector3(...position)}
       onClick={(e) => { e.stopPropagation(); onClick(plant.id); }}
     >
-      {/* Selection Ring */}
+      {/* Selection Ring - appears when selected */}
       {isSelected && (
         <group>
           <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.4, 0.5, 32]} />
-            <meshBasicMaterial color="#3b82f6" opacity={0.8} transparent side={2} />
+            <ringGeometry args={[0.35, 0.45, 32]} />
+            <meshBasicMaterial color="#22c55e" opacity={0.9} transparent side={2} />
           </mesh>
-          <pointLight position={[0, 2, 0]} color="#3b82f6" intensity={2} distance={3} />
+          {/* Glow effect */}
+          <pointLight position={[0, 1.5, 0]} color="#22c55e" intensity={3} distance={2.5} />
         </group>
       )}
 
-      {/* Breeding Value Orb (Genomic Selection View) */}
+      {/* Genomic View indicator - subtle glow instead of orb */}
       {showGenetics && (
-        <group position={[0, finalScaleY * 4, 0]}>
-          <mesh>
-            <sphereGeometry args={[0.25, 16, 16]} />
-            <meshStandardMaterial
-              color={plant.breedingValue.yield > 12 ? "#a855f7" : "#4b5563"}
-              emissive={plant.breedingValue.yield > 12 ? "#a855f7" : "#000000"}
-              emissiveIntensity={2}
-              transparent
-              opacity={0.9}
-            />
-          </mesh>
-        </group>
+        <pointLight
+          position={[0, finalScaleY * 3, 0]}
+          color={plant.breedingValue.yield > 12 ? "#a855f7" : "#6b7280"}
+          intensity={plant.breedingValue.yield > 12 ? 2 : 0.5}
+          distance={2}
+        />
       )}
 
-      {/* The External 3D Model */}
+      {/* The 3D Corn Model */}
       <primitive
         object={clonedScene}
-        scale={[finalScaleXZ, finalScaleY, finalScaleXZ]}
-        rotation={[0, Math.random() * Math.PI, 0]} // Random rotation for variation
+        scale={[thicknessScale, finalScaleY, thicknessScale]}
+        rotation={[0, Math.random() * Math.PI * 2, 0]}
       />
-
     </group>
   );
 };
